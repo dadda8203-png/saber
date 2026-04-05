@@ -208,4 +208,172 @@
         });
 
         // Fonction pour dessiner la voiture (Vue de dessus)
-        function drawCar(x, y
+        function drawCar(x, y, colorBody, colorWindow) {
+            // Pneus
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x - 5, y + 10, 8, 20); // Avant gauche
+            ctx.fillRect(x + 47, y + 10, 8, 20); // Avant droit
+            ctx.fillRect(x - 5, y + 60, 8, 20); // Arrière gauche
+            ctx.fillRect(x + 47, y + 60, 8, 20); // Arrière droit
+
+            // Carrosserie
+            ctx.fillStyle = colorBody;
+            ctx.beginPath();
+            ctx.roundRect(x, y, car.width, car.height, 10);
+            ctx.fill();
+
+            // Vitres
+            ctx.fillStyle = colorWindow;
+            ctx.fillRect(x + 5, y + 20, 40, 15); // Pare-brise
+            ctx.fillRect(x + 5, y + 60, 40, 10); // Vitre arrière
+
+            // Phares
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(x + 5, y - 2, 10, 5); // Phare gauche
+            ctx.fillRect(x + 35, y - 2, 10, 5); // Phare droit
+        }
+
+        function spawnObstacle() {
+            const sizeWidth = 50;
+            const sizeHeight = 90;
+            // 3 voies possibles
+            const lanes = [50, 175, 300];
+            const randomLane = lanes[Math.floor(Math.random() * lanes.length)];
+            
+            obstacles.push({
+                x: randomLane,
+                y: -100,
+                width: sizeWidth,
+                height: sizeHeight,
+                color: '#e94560' // Rouge danger
+            });
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            // Déplacement de la Dacia
+            car.x += car.dx;
+            
+            // Limites de la route (Murs invisibles)
+            if (car.x < 20) car.x = 20;
+            if (car.x + car.width > canvas.width - 20) car.x = canvas.width - car.width - 20;
+
+            // Animation de la route (Effet de vitesse)
+            for (let i = 0; i < lines.length; i++) {
+                lines[i].y += gameSpeed;
+                if (lines[i].y > canvas.height) lines[i].y = -150;
+            }
+
+            // Génération des obstacles
+            frameCount++;
+            // Plus le score monte, plus les obstacles apparaissent vite
+            let spawnRate = Math.max(30, 100 - Math.floor(score / 50)); 
+            if (frameCount % spawnRate === 0) spawnObstacle();
+
+            // Gestion des obstacles
+            for (let i = 0; i < obstacles.length; i++) {
+                obstacles[i].y += gameSpeed;
+
+                // Collision chirurgicale (Bounding Box)
+                if (
+                    car.x < obstacles[i].x + obstacles[i].width &&
+                    car.x + car.width > obstacles[i].x &&
+                    car.y < obstacles[i].y + obstacles[i].height &&
+                    car.y + car.height > obstacles[i].y
+                ) {
+                    gameOver();
+                }
+
+                // Supprimer les obstacles qui sortent de l'écran & augmenter le score
+                if (obstacles[i].y > canvas.height) {
+                    obstacles.splice(i, 1);
+                    score += 10;
+                    scoreDisplay.innerText = score;
+                    i--;
+                    
+                    // Augmentation de la vitesse globale !
+                    if (score % 50 === 0) {
+                        gameSpeed += 0.5;
+                        speedDisplay.innerText = 100 + (score);
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            // Effacer le canvas (Asphalte)
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Dessiner les bordures (Trottoirs)
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(0, 0, 15, canvas.height);
+            ctx.fillRect(canvas.width - 15, 0, 15, canvas.height);
+
+            // Dessiner les lignes blanches centrales
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            for (let i = 0; i < lines.length; i++) {
+                ctx.fillRect(canvas.width / 3, lines[i].y, 5, 80);
+                ctx.fillRect((canvas.width / 3) * 2, lines[i].y, 5, 80);
+            }
+
+            // Dessiner la Dacia du joueur (Bleu Premium)
+            drawCar(car.x, car.y, '#00d2ff', '#0f172a');
+
+            // Dessiner les obstacles (Véhicules adverses en rouge)
+            for (let i = 0; i < obstacles.length; i++) {
+                drawCar(obstacles[i].x, obstacles[i].y, '#e94560', '#1a1a1a');
+            }
+        }
+
+        // La boucle de rendu graphique (Game Loop)
+        function gameLoop() {
+            update();
+            draw();
+            if (!isGameOver) {
+                animationId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            cancelAnimationFrame(animationId);
+            
+            // Effet d'écran qui tremble
+            canvas.style.transform = "translate(5px, 5px)";
+            setTimeout(() => canvas.style.transform = "translate(-5px, -5px)", 50);
+            setTimeout(() => canvas.style.transform = "translate(5px, 5px)", 100);
+            setTimeout(() => canvas.style.transform = "translate(0, 0)", 150);
+
+            // Affichage de l'écran de fin
+            overlay.style.display = 'flex';
+            overlayTitle.innerText = "ACCIDENT !";
+            overlayTitle.style.color = "var(--danger)";
+            overlaySubtitle.innerText = Votre score : ${score};
+            startBtn.innerText = "Rejouer";
+        }
+
+        function initGame() {
+            car.x = canvas.width / 2 - 25;
+            obstacles.length = 0; // Vider le tableau
+            score = 0;
+            gameSpeed = 5;
+            frameCount = 0;
+            isGameOver = false;
+            
+            scoreDisplay.innerText = score;
+            speedDisplay.innerText = "100";
+            overlay.style.display = 'none';
+
+            gameLoop();
+        }
+
+        startBtn.addEventListener('click', initGame);
+        
+        // Premier dessin à l'arrêt
+        draw();
+
+    </script>
+</body>
+</html>
