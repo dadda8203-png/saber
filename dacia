@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saber Dacia Drift - Édition Premium</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --road-color: #1e293b;
+            --accent: #00d2ff;
+            --danger: #e94560;
+            --text-main: #f8fafc;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .game-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 36px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            margin: 0 0 10px 0;
+            background: linear-gradient(90deg, #ffffff, var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(0, 210, 255, 0.3);
+        }
+
+        .stats-panel {
+            display: flex;
+            gap: 40px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px 30px;
+            border-radius: 15px;
+            border: 1px solid rgba(0, 210, 255, 0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        #score-display { color: var(--accent); }
+        #speed-display { color: #f59e0b; }
+
+        /* Le conteneur du jeu */
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8), 0 0 0 2px rgba(255,255,255,0.1);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            background: var(--road-color);
+            border-radius: 10px;
+        }
+
+        /* L'écran d'accueil / Game Over */
+        #overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(11, 15, 25, 0.85);
+            backdrop-filter: blur(5px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        #overlay-title {
+            font-size: 48px;
+            font-weight: 800;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        #overlay-subtitle {
+            color: var(--accent);
+            font-size: 18px;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        button {
+            background: linear-gradient(135deg, var(--accent), #0077ff);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 12px;
+            font-size: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 20px rgba(0, 210, 255, 0.4);
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 15px 25px rgba(0, 210, 255, 0.6);
+        }
+
+        .controls-hint {
+            margin-top: 20px;
+            color: #64748b;
+            font-size: 14px;
+            text-align: center;
+        }
+        kbd {
+            background: #334155;
+            padding: 3px 8px;
+            border-radius: 4px;
+            color: white;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-header">
+        <h1>Saber Dacia Drift</h1>
+        <div class="stats-panel">
+            <div>SCORE: <span id="score-display">0</span></div>
+            <div>VIT: <span id="speed-display">100</span> KM/H</div>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        
+        <div id="overlay">
+            <div id="overlay-title">PRÊT ?</div>
+            <div id="overlay-subtitle">Domptez la Dacia.</div>
+            <button id="start-btn">Démarrer le Moteur</button>
+            <div class="controls-hint">
+                Utilisez <kbd>←</kbd> et <kbd>→</kbd> pour piloter.<br>
+                Esquivez les obstacles rouges.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const overlay = document.getElementById('overlay');
+        const startBtn = document.getElementById('start-btn');
+        const overlayTitle = document.getElementById('overlay-title');
+        const overlaySubtitle = document.getElementById('overlay-subtitle');
+        const scoreDisplay = document.getElementById('score-display');
+        const speedDisplay = document.getElementById('speed-display');
+
+        // Variables du jeu
+        let animationId;
+        let isGameOver = false;
+        let score = 0;
+        let gameSpeed = 5;
+        let frameCount = 0;
+
+        // La Dacia de l'Ostad
+        const car = {
+            width: 50,
+            height: 90,
+            x: canvas.width / 2 - 25,
+            y: canvas.height - 110,
+            speed: 7,
+            dx: 0
+        };
+
+        const obstacles = [];
+        const lines = []; // Lignes blanches de la route
+
+        // Initialisation des lignes de la route
+        for (let i = 0; i < 5; i++) {
+            lines.push({ y: i * 150 });
+        }
+
+        // Écoute des touches du clavier
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') car.dx = -car.speed;
+            if (e.key === 'ArrowRight') car.dx = car.speed;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') car.dx = 0;
+        });
+
+        // Fonction pour dessiner la voiture (Vue de dessus)
+        function drawCar(x, y
